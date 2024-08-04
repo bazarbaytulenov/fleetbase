@@ -1,0 +1,94 @@
+services:
+  cache:
+    image: redis:4-alpine
+
+  database:
+    image: mysql:8.0-oracle
+    ports:
+      - "3306:3306"
+    volumes:
+      - "./docker/database/:/docker-entrypoint-initdb.d/"
+      - "./docker/database/mysql:/var/lib/mysql"
+    environment:
+      MYSQL_ALLOW_EMPTY_PASSWORD: "yes"
+      MYSQL_DATABASE: "fleetbase"
+
+  socket:
+    image: socketcluster/socketcluster:v17.4.0
+    ports:
+      - "38000:8000"
+    environment:
+      SOCKETCLUSTER_WORKERS: 10
+      SOCKETCLUSTER_BROKERS: 10
+
+  queue:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile
+      target: events-dev
+      args:
+        ENVIRONMENT: development
+    environment:
+      DATABASE_URL: "mysql://root@database/fleetbase"
+      QUEUE_CONNECTION: redis
+      CACHE_DRIVER: redis
+      CACHE_PATH: /fleetbase/api/storage/framework/cache
+      CACHE_URL: tcp://cache
+      REDIS_URL: tcp://cache
+
+  console:
+    build:
+      context: .
+      dockerfile: console/Dockerfile.server-build
+      args:
+        ENVIRONMENT: development
+    ports:
+      - "4200:4200"
+    volumes:
+      - console-build:/console
+
+  application:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile
+      target: app-dev
+      args:
+        ENVIRONMENT: development
+        GITHUB_AUTH_KEY: ${GITHUB_AUTH_KEY}
+    volumes:
+      - console-build:/fleetbase/console
+    environment:
+      ENVIRONMENT: development
+      DATABASE_URL: "mysql://root@database/fleetbase"
+      QUEUE_CONNECTION: redis
+      CACHE_DRIVER: redis
+      CACHE_PATH: /fleetbase/api/storage/framework/cache
+      CACHE_URL: tcp://cache
+      REDIS_URL: tcp://cache
+      SESSION_DOMAIN: localhost
+      BROADCAST_DRIVER: socketcluster
+      MAIL_FROM_NAME: Fleetbase
+      APP_NAME: Fleetbase
+      LOG_CHANNEL: daily
+      MODEL_CACHE_ENABLED: 'true'
+      RESPONSE_CACHE_ENABLED: 'true'
+      RESPONSE_CACHE_DRIVER: redis
+      REGISTRY_HOST: https://registry.fleetbase.io
+      REGISTRY_PREINSTALLED_EXTENSIONS: 'true'
+      OSRM_HOST: https://router.project-osrm.org
+    depends_on:
+      - database
+      - cache
+      - queue
+
+  httpd:
+    build:
+      context: .
+      dockerfile: docker/httpd/Dockerfile
+    ports:
+      - "8000:80"
+    depends_on:
+      - application
+
+volumes:
+  console-build:
