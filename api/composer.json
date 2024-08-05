@@ -8,7 +8,7 @@
     ],
     "license": "AGPL-3.0-or-later",
     "require": {
-        "php": "^8.0",
+        "php": "^8.3.10",
         "fleetbase/core-api": "^1.5.1",
         "fleetbase/fleetops-api": "^0.5.5",
         "fleetbase/registry-bridge": "^0.0.11",
